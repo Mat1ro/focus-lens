@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+    <key>CFBundleExecutable</key><string>FocusLens</string>
+    <key>CFBundleIdentifier</key><string>dev.local.FocusLens</string>
+    <key>CFBundleName</key><string>Focus Lens</string>
+    <key>CFBundleDisplayName</key><string>Focus Lens</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleShortVersionString</key><string>1.0.4</string>
+    <key>CFBundleVersion</key><string>5</string>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
+    <key>LSMinimumSystemVersion</key><string>14.0</string>
+    <key>LSUIElement</key><true/>
+    <key>NSHighResolutionCapable</key><true/>
+    <key>NSScreenCaptureUsageDescription</key><string>Focus Lens увеличивает область экрана под курсором. Кадры обрабатываются только в памяти и никуда не отправляются.</string>
+</dict></plist>

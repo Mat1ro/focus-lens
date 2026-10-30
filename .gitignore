@@ -1,0 +1,19 @@
+# Build outputs and local files
+.build/
+.swiftpm/
+dist/
+*.app/
+*.zip
+.DS_Store
+LOCAL.md
+
+# Local signing identities and credentials
+.signing/
+Signing/
+*.keychain-db
+*.p12
+*.pfx
+*.pem
+*.key
+.env
+.env.*

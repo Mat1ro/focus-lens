@@ -1,0 +1,6 @@
+hidden-start visibleOnly=true ownApplications=0
+hidden-start visibleOnly=false ownApplications=1
+PASS: unfiltered positive control contains marker
+PASS: own overlay excluded from capture
+PASS: newly-created panel positive control
+PASS: new panel excluded after hidden-window restart

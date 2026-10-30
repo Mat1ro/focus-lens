@@ -1,0 +1,1 @@
+PASS: negative preflight did not block real capture; successful verification survives refresh.
