@@ -1,0 +1,3 @@
+PASS: 50 unchanged screen notifications kept one capture session.
+PASS: 10 granted-permission checks started no capture probe.
+PASS: checking granted access while disabled is passive.

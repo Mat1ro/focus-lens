@@ -19,6 +19,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var settingsWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if let index = CommandLine.arguments.firstIndex(of: "--screen-change-check"), CommandLine.arguments.count > index + 1 {
+            runScreenChangeCheck(output: URL(fileURLWithPath: CommandLine.arguments[index + 1]))
+            return
+        }
         if let index = CommandLine.arguments.firstIndex(of: "--permission-flow-check"), CommandLine.arguments.count > index + 1 {
             let output = URL(fileURLWithPath: CommandLine.arguments[index + 1])
             Task { @MainActor in
@@ -194,6 +198,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
     enum PreviewError: Error { case renderFailed }
+
+    private func runScreenChangeCheck(output: URL) {
+        Task { @MainActor in
+            var result = "PERMISSION_REQUIRED: no capture attempted.\n"
+            if CGPreflightScreenCaptureAccess() {
+                model.setEnabled(true)
+                for _ in 0..<60 {
+                    if !model.isStarting { break }
+                    try? await Task.sleep(for: .milliseconds(100))
+                }
+                if model.isEnabled && !model.isStarting && model.captureStartCount == 1 {
+                    // Exercise the actual AppModel observer, not just the equality
+                    // helper. No additional authorization or capture should occur.
+                    for _ in 0..<50 {
+                        NotificationCenter.default.post(name: NSApplication.didChangeScreenParametersNotification, object: nil)
+                    }
+                    for _ in 0..<10 { model.verifyPermission() }
+                    try? await Task.sleep(for: .milliseconds(400))
+                    if model.isEnabled && model.captureStartCount == 1 && !model.isCheckingPermission {
+                        result = "PASS: 50 unchanged screen notifications kept one capture session.\n"
+                        result += "PASS: 10 granted-permission checks started no capture probe.\n"
+                    } else {
+                        result = "FAIL: starts=\(model.captureStartCount), checking=\(model.isCheckingPermission), enabled=\(model.isEnabled).\n"
+                    }
+                    model.setEnabled(false)
+                    model.verifyPermission()
+                    result += model.isCheckingPermission
+                        ? "FAIL: checking granted access while disabled started a probe.\n"
+                        : "PASS: checking granted access while disabled is passive.\n"
+                } else {
+                    result = "FAIL: initial capture did not start: \(model.errorMessage ?? "timeout").\n"
+                }
+            }
+            model.shutdown()
+            try? Data(result.utf8).write(to: output)
+            NSApp.terminate(nil)
+        }
+    }
 
     private func runCaptureCheck() {
         guard let index = CommandLine.arguments.firstIndex(of: "--capture-check"),

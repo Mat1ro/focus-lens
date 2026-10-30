@@ -18,6 +18,9 @@ import ScreenCaptureKit
     private var timer: Timer?
     private var sessionTask: Task<Void, Never>?
     private var generation = 0
+    private(set) var captureStartCount = 0
+    private var displayLayout: [DisplayConfiguration] = []
+    private var activeDisplayConfiguration: DisplayConfiguration?
     private var activeDisplayID: CGDirectDisplayID?
     private var activeFPS = 60
     private var captureAccessVerified = false
@@ -28,14 +31,13 @@ import ScreenCaptureKit
         self.preferences = preferences
         self.preflight = preflight
         self.hasPermission = preflight()
+        displayLayout = NSScreen.displayLayout
         overlay.rebuildScreens()
         observers.append(NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
-                guard let self else { return }
-                self.overlay.rebuildScreens()
-                if self.isEnabled { self.restartCapture() }
+                self?.screenParametersChanged()
             }
         })
         observers.append(NSWorkspace.shared.notificationCenter.addObserver(
@@ -58,7 +60,10 @@ import ScreenCaptureKit
     /// enforces macOS consent and returns the authoritative capture error.
     func verifyPermission() {
         guard !isCheckingPermission else { return }
-        if isEnabled { refreshPermission(); return }
+        if isEnabled || preflight() || captureAccessVerified {
+            refreshPermission()
+            return
+        }
         isCheckingPermission = true
         errorMessage = nil
         Task { @MainActor [weak self] in
@@ -85,6 +90,10 @@ import ScreenCaptureKit
     }
 
     func requestPermission() {
+        if preflight() || captureAccessVerified {
+            refreshPermission()
+            return
+        }
         hasPermission = CGRequestScreenCaptureAccess()
         if !hasPermission { openPrivacySettings() }
     }
@@ -114,6 +123,7 @@ import ScreenCaptureKit
             let oldCapture = capture
             capture = nil
             activeDisplayID = nil
+            activeDisplayConfiguration = nil
             Task { await oldCapture?.stop() }
         }
         onStateChanged?()
@@ -136,9 +146,28 @@ import ScreenCaptureKit
         return NSScreen.screens.first(where: { NSMouseInRect(pointer, $0.frame, false) }) ?? NSScreen.main
     }
 
+    private func screenParametersChanged() {
+        // A notification alone does not mean the physical display changed.
+        // Comparing IDs, full frames and scale avoids querying ScreenCaptureKit
+        // again when only the workspace / menu bar / Dock visibility changes.
+        let newLayout = NSScreen.displayLayout
+        guard newLayout != displayLayout else { return }
+        displayLayout = newLayout
+        overlay.rebuildScreens()
+        guard isEnabled, let configuration = currentScreen()?.captureConfiguration else { return }
+        if activeDisplayConfiguration?.hasSameCaptureFormat(as: configuration) != true {
+            restartCapture()
+        } else {
+            // A monitor moved in the desktop layout; its existing stream is valid.
+            activeDisplayConfiguration = configuration
+        }
+    }
+
     private func restartCapture() {
         guard isEnabled, let screen = currentScreen(), let id = screen.displayID else { return }
         generation += 1
+        captureStartCount += 1
+        activeDisplayConfiguration = screen.captureConfiguration
         let currentGeneration = generation
         sessionTask?.cancel()
         let oldCapture = capture
@@ -238,6 +267,15 @@ import ScreenCaptureKit
 }
 
 extension NSScreen {
+    static var displayLayout: [DisplayConfiguration] {
+        screens.compactMap(\.captureConfiguration).sorted { $0.id < $1.id }
+    }
+
+    var captureConfiguration: DisplayConfiguration? {
+        guard let displayID else { return nil }
+        return DisplayConfiguration(id: displayID, frame: frame, scale: backingScaleFactor)
+    }
+
     var displayID: CGDirectDisplayID? {
         (deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value
     }
